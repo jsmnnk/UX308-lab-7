@@ -1,28 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, ScrollView, KeyboardAvoidingView, Keyboard, Platform } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, KeyboardAvoidingView, Keyboard, Platform } from 'react-native';
 import { handleInput } from '../Order';
-import ChatView from './ChatView'
+import ChatView from './ChatView';
 import WelcomeView from './WelcomeView';
 
-export default function(){
+export default function () {
   const [messages, setMessages] = useState([]);
   const [inputBarText, setInputBarText] = useState('');
+  const [points, setPoints] = useState(0); // ⭐ loyalty points
   const scrollViewRef = useRef(null);
 
-  // Scroll to bottom helper
   const scrollToBottom = (animated = true) => {
-    // Small timeout ensures the layout has calculated before scrolling
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated });
     }, 100);
   };
 
   useEffect(() => {
-    // Setup keyboard listeners
     const showSubscription = Keyboard.addListener('keyboardDidShow', () => scrollToBottom());
     const hideSubscription = Keyboard.addListener('keyboardDidHide', () => scrollToBottom());
 
-    // Initial scroll
     scrollToBottom(false);
 
     return () => {
@@ -31,7 +28,6 @@ export default function(){
     };
   }, []);
 
-  // Scroll whenever messages update
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -39,61 +35,82 @@ export default function(){
   const sendMessage = () => {
     if (inputBarText.trim().length === 0) return;
 
-    // Correct way to update state: create a NEW array
     let newMessages = [{ direction: 'right', text: inputBarText }];
-    const aResponse = handleInput(inputBarText);
-    for(const message of aResponse){
-      newMessages.push({direction: "left", text: message});
+
+    const result = handleInput(inputBarText);
+    const responses = result.responses;
+
+    for (const message of responses) {
+      newMessages.push({ direction: "left", text: message });
     }
-    setMessages([...messages, ...newMessages]);
+
+    // ⭐ add points when order completes
+    if (result.orderComplete) {
+      setPoints(prev => {
+        const newPoints = prev + 1;
+
+        newMessages.push({
+          direction: "left",
+          text: `⭐ You earned a point! (${newPoints}/10)`
+        });
+
+        if (newPoints === 10) {
+          newMessages.push({
+            direction: "left",
+            text: "🎉 Congrats! Your next order is FREE!"
+          });
+        }
+
+        return newPoints;
+      });
+    }
+
+    setMessages(prev => [...prev, ...newMessages]);
     setInputBarText('');
   };
 
   return (
     <View style={styles.outer}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      <Text style={styles.points}>Points: {points}/10</Text>
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        {messages.length?(
-        <ChatView scrollToBottom={scrollToBottom} 
-        sendMessage={sendMessage} 
-        scrollViewRef={scrollViewRef} 
-        styles={styles} 
-        messages={messages} 
-        setInputBarText={setInputBarText}
-        inputBarText={inputBarText}  />
-
-        ):(
-          <WelcomeView 
-          scrollToBottom={scrollToBottom} 
-        sendMessage={sendMessage} 
-        scrollViewRef={scrollViewRef} 
-        styles={styles} 
-        messages={messages} 
-        setInputBarText={setInputBarText}
-        inputBarText={inputBarText}  />
-
+        {messages.length ? (
+          <ChatView
+            scrollToBottom={scrollToBottom}
+            sendMessage={sendMessage}
+            scrollViewRef={scrollViewRef}
+            styles={styles}
+            messages={messages}
+            setInputBarText={setInputBarText}
+            inputBarText={inputBarText}
+          />
+        ) : (
+          <WelcomeView
+            scrollToBottom={scrollToBottom}
+            sendMessage={sendMessage}
+            scrollViewRef={scrollViewRef}
+            styles={styles}
+            messages={messages}
+            setInputBarText={setInputBarText}
+            inputBarText={inputBarText}
+          />
         )}
       </KeyboardAvoidingView>
     </View>
   );
-};
+}
 
-//TODO: separate these out. This is what happens when you're in a hurry!
 const styles = StyleSheet.create({
-
-  //ChatView
-
   outer: {
     flex: 1,
-    flexDirection: 'column',
-    justifyContent: 'space-between',
     backgroundColor: 'white'
   },
-
-  messages: {
-    flex: 1
-  },
-
-})
+  points: {
+    padding: 15,
+    fontSize: 18,
+    fontWeight: 'bold'
+  }
+});
